@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Casual Angling · Fishing spots around Melbourne</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12c3-4 7-5 11-3 2 1 4 3 6 3-2 0-4 2-6 3-4 2-8 1-11-3z"/><path d="M3 12l-1 3M3 12L2 9"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Casual Angling</div>
+      <div class="brand-sub">Your record of good fishing spots</div>
+    </div>
+  </div>
+  <label class="search">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="search" type="search" placeholder="Search rivers, spots, notes…" aria-label="Search spots">
+    <kbd>⌘ K</kbd>
+  </label>
+  <button type="button" class="btn primary" id="addBtn">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Add spot
+  </button>
+</header>
+
+<main class="stage">
+  <div id="map"></div>
+
+  <aside class="card list-card" id="listCard">
+    <div class="list-head">
+      <div>
+        <h1>Spots</h1>
+        <div class="meta" id="listMeta"></div>
+      </div>
+      <button type="button" class="icon-btn" id="collapse" aria-label="Collapse list" aria-expanded="true">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+    </div>
+    <div class="list" id="list"></div>
+    <footer class="list-foot">
+      <div class="season"><span class="dot" id="seasonDot"></span><span id="seasonTxt"></span></div>
+      <div class="foot-actions">
+        <button type="button" class="link-btn" id="exportBtn">Export book</button>
+        <label class="link-btn">Import<input type="file" id="importFile" accept="application/json" hidden></label>
+      </div>
+      <div class="fine">Drive times are estimates from Fitzroy.</div>
+    </footer>
+  </aside>
+
+  <div class="toolbar card" role="toolbar" aria-label="Filters">
+    <div class="seg" aria-label="List view">
+      <button type="button" data-mode="groups">By water</button>
+      <button type="button" data-mode="all">All spots</button>
+    </div>
+    <div class="pop-wrap">
+      <button type="button" class="chip" id="budgetChip" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span id="budgetLbl"></span>
+      </button>
+      <div class="popover card" id="budgetPop" hidden>
+        <div class="label">Max drive, one way</div>
+        <input type="range" id="budget" min="30" max="240" step="5" aria-label="Maximum drive time in minutes">
+        <div class="ticks"><span>30m</span><span>2h</span><span>4h</span></div>
+      </div>
+    </div>
+    <button type="button" class="chip" data-filter="want" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
+      Want to go
+    </button>
+    <button type="button" class="chip" data-filter="fished" aria-pressed="false">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>
+      Fished
+    </button>
+  </div>
+
+  <div class="maptype card" role="radiogroup" aria-label="Map type" id="maptype"></div>
+  <div class="engine-note" id="engineNote" hidden></div>
+  <div class="add-banner card" id="addBanner" hidden>
+    <span>Click the map to drop a pin, or</span>
+    <button type="button" class="btn small" id="useLoc">Use my location</button>
+    <button type="button" class="link-btn" id="cancelAdd">Cancel</button>
+  </div>
+
+  <section class="card detail" id="detail" hidden aria-live="polite"></section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- config.js holds the Google Maps key; it is gitignored. If it's missing the app falls back to free tiles. -->
+<script src="config.js"></script>
+<script src="spots.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
