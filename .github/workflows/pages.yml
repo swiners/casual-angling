@@ -27,7 +27,7 @@ jobs:
       - name: Assemble site (public files only)
         run: |
           mkdir _site
-          cp index.html styles.css app.js spots.js _site/
+          cp index.html styles.css app.js spots.js drive-grid.js _site/
 
       # The Maps key lives in the GOOGLE_MAPS_KEY repo secret, never in git.
       # It's a browser key, so it's visible in the served page by design; the referrer

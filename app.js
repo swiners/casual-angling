@@ -16,6 +16,7 @@
   const state = {
     budget: clampInt(saved.budget, 30, 240, 135),
     mode: saved.mode === 'all' ? 'all' : 'groups',
+    rings: saved.rings !== false,
     filters: { want: false, fished: false },
     q: '',
     marks: migrateMarks(saved.marks || {}),
@@ -24,7 +25,7 @@
     adding: false, draft: null, editingId: null,
   };
   const persist = () => localStorage.setItem(STORE, JSON.stringify({
-    budget: state.budget, mode: state.mode, marks: state.marks, custom: state.custom,
+    budget: state.budget, mode: state.mode, rings: state.rings, marks: state.marks, custom: state.custom,
   }));
 
   function clampInt(v, lo, hi, dflt) { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt; }
@@ -65,6 +66,23 @@
   const CUSTOM_COLOURS = ['#0f766e', '#b45309', '#7c3aed', '#be123c', '#0369a1', '#4d7c0f'];
 
   // Rough drive estimate for spots without one: crow-flies × 1.3 road factor at ~80 km/h, +10 min to get out of town.
+  // Drive time from the prebuilt OSRM grid (drive-grid.js), bilinear between cells. null if off-road/sea/out of range.
+  const G = window.DRIVE_GRID;
+  function sampleGrid(lat, lng) {
+    if (!G || lat > G.north || lat < G.south || lng < G.west || lng > G.east) return null;
+    const r = (G.north - lat) / ((G.north - G.south) / (G.rows - 1));
+    const c = (lng - G.west) / ((G.east - G.west) / (G.cols - 1));
+    const r0 = Math.min(G.rows - 2, Math.floor(r)), c0 = Math.min(G.cols - 2, Math.floor(c)), fr = r - r0, fc = c - c0;
+    const v = (i, j) => G.data[(r0 + i) * G.cols + (c0 + j)];
+    const a = v(0, 0), b = v(0, 1), d = v(1, 0), e = v(1, 1);
+    if (a < 0 || b < 0 || d < 0 || e < 0) {
+      const ok = [a, b, d, e].filter(x => x >= 0);   // coast/bush edge: fall back to the valid corners
+      return ok.length ? ok.reduce((x, y) => x + y) / ok.length : null;
+    }
+    return (a * (1 - fc) + b * fc) * (1 - fr) + (d * (1 - fc) + e * fc) * fr;
+  }
+  const gridDrive = (lat, lng) => { const m = sampleGrid(lat, lng); return m == null ? null : Math.round(m / 5) * 5; };
+
   function estimateDrive(lat, lng) {
     const R = 6371, rad = d => d * Math.PI / 180;
     const a = Math.sin(rad(lat - HOME.lat) / 2) ** 2 + Math.cos(rad(HOME.lat)) * Math.cos(rad(lat)) * Math.sin(rad(lng - HOME.lng) / 2) ** 2;
@@ -85,10 +103,13 @@
         w = { id: `cw-${key.replace(/[^a-z0-9]+/g, '-')}`, name: c.waterName || 'My spots', region: KINDS[c.kind], colour: CUSTOM_COLOURS[ci++ % CUSTOM_COLOURS.length], blurb: '', spots: [] };
         byName.set(key, w); waters.push(w);
       }
-      return { ...c, custom: true, water: w, drive: c.drive ?? estimateDrive(c.lat, c.lng), driveEstimated: c.drive == null, src: 'mine' };
+      return { ...c, custom: true, water: w, drive: c.drive ?? gridDrive(c.lat, c.lng) ?? estimateDrive(c.lat, c.lng), driveEstimated: c.drive == null && gridDrive(c.lat, c.lng) == null, src: 'mine' };
     });
-    spots = [...WATERS.flatMap(w => w.spots.map(s => ({ ...s, water: waters.find(x => x.id === w.id) }))), ...mine];
+    spots = [...WATERS.flatMap(w => w.spots.map(s => ({ ...s, drive: G?.spots?.[s.id] ?? s.drive, water: waters.find(x => x.id === w.id) }))), ...mine];
   }
+
+  // Room to leave around the pins when fitting: desktop has the list on the left, mobile has it along the bottom.
+  const fitPad = () => innerWidth > 820 ? { left: 370, top: 80, right: 40, bottom: 40 } : { left: 20, top: 110, right: 20, bottom: Math.round(innerHeight * 0.42) };
 
   // ---------- Map engines ----------
   // Both engines expose the same small surface so the rest of the app doesn't care which is live.
@@ -130,9 +151,14 @@
       panTo(lat, lng, zoom) { map.panTo({ lat, lng }); if (zoom && map.getZoom() < zoom) map.setZoom(zoom); },
       fit(points) {
         const b = new google.maps.LatLngBounds(); points.forEach(([a, c]) => b.extend({ lat: a, lng: c }));
-        map.fitBounds(b, { left: 370, top: 80, right: 40, bottom: 40 });
+        map.fitBounds(b, fitPad());
       },
       onClick: cb => map.addListener('click', e => cb(e.latLng.lat(), e.latLng.lng())),
+      // Swap in the new image before dropping the old one so the slider doesn't flicker.
+      setOverlay(url, b) {
+        const next = url && new google.maps.GroundOverlay(url, { north: b.north, south: b.south, east: b.east, west: b.west }, { clickable: false, map });
+        this._ov?.setMap(null); this._ov = next;
+      },
     };
   }
 
@@ -157,8 +183,13 @@
         return { remove: () => map.removeLayer(m), move: (a, b) => m.setLatLng([a, b]) };
       },
       panTo(lat, lng, zoom) { map.flyTo([lat, lng], Math.max(map.getZoom(), zoom || 0), { duration: .7 }); },
-      fit(points) { map.fitBounds(points, { paddingTopLeft: [370, 80], paddingBottomRight: [40, 40] }); },
+      fit(points) { const p = fitPad(); map.fitBounds(points, { paddingTopLeft: [p.left, p.top], paddingBottomRight: [p.right, p.bottom] }); },
       onClick: cb => map.on('click', e => cb(e.latlng.lat, e.latlng.lng)),
+      setOverlay(url, b) {
+        if (!url) { this._ov?.remove(); this._ov = null; return; }
+        if (this._ov) this._ov.setUrl(url);
+        else this._ov = L.imageOverlay(url, [[b.south, b.west], [b.north, b.east]], { interactive: false }).addTo(map);
+      },
     };
   }
 
@@ -182,6 +213,75 @@
         const node = pinNode(s);
         pins.set(s.id, { node, handle: engine.addMarker(s.lat, s.lng, node, () => select(s.id, false), 2) });
       }
+    }
+  }
+
+  // ---------- Drive-time overlay ----------
+  // Painted client-side from the grid so the slider can grow/shrink it live. Rows are laid out in
+  // Web Mercator so the image lines up with the basemap; each pixel is mapped back to lat/lng.
+  const RAMP = [[0, [217, 70, 239]], [0.33, [139, 92, 246]], [0.6, [59, 130, 246]], [1, [6, 182, 212]]];
+  const MAX_MIN = 240;
+  function rampColour(t) {
+    t = Math.max(0, Math.min(1, t));
+    let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1][0]) i++;
+    const [t0, c0] = RAMP[i], [t1, c1] = RAMP[i + 1], f = (t - t0) / (t1 - t0);
+    return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
+  }
+  const mercY = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const W_PX = 1000;
+  let ovCanvas, ovVals;  // cached per-pixel minutes; only colouring reruns when the budget changes
+  function overlayValues() {
+    if (ovVals) return ovVals;
+    const yN = mercY(G.north), yS = mercY(G.south);
+    const H = Math.round(W_PX * (yN - yS) / ((G.east - G.west) * Math.PI / 180));
+    ovCanvas = Object.assign(document.createElement('canvas'), { width: W_PX, height: H });
+    ovVals = new Float32Array(W_PX * H);
+    for (let y = 0; y < H; y++) {
+      const lat = (2 * Math.atan(Math.exp(yN - (y + .5) / H * (yN - yS))) - Math.PI / 2) * 180 / Math.PI;
+      for (let x = 0; x < W_PX; x++) {
+        const v = sampleGrid(lat, G.west + (x + .5) / W_PX * (G.east - G.west));
+        ovVals[y * W_PX + x] = v == null ? -1 : v;
+      }
+    }
+    return ovVals;
+  }
+  let ovFrame = 0;
+  function drawOverlay() {
+    if (!engine?.setOverlay || !G) return;
+    if (!state.rings) { engine.setOverlay(null); drawRingLabels(); return; }
+    cancelAnimationFrame(ovFrame);
+    ovFrame = requestAnimationFrame(() => {
+      const vals = overlayValues(), W = ovCanvas.width, H = ovCanvas.height, lim = state.budget;
+      const ctx = ovCanvas.getContext('2d'), img = ctx.createImageData(W, H), px = img.data;
+      const band = v => (v < 0 || v > lim ? -1 : Math.floor(v / 60));
+      for (let i = 0; i < vals.length; i++) {
+        const v = vals[i]; if (v < 0 || v > lim) continue;
+        const [r, g, b] = rampColour(v / MAX_MIN);
+        const bd = band(v), right = (i % W) < W - 1 ? band(vals[i + 1]) : bd, down = i + W < vals.length ? band(vals[i + W]) : bd;
+        const edge = right !== bd || down !== bd;   // hour lines and the outer budget edge
+        px[i * 4] = r; px[i * 4 + 1] = g; px[i * 4 + 2] = b; px[i * 4 + 3] = edge ? 190 : 95;
+      }
+      ctx.putImageData(img, 0, 0);
+      engine.setOverlay(ovCanvas.toDataURL('image/png'), G);
+      drawRingLabels();
+    });
+  }
+  // "1h", "2h"… labels placed where each hour line crosses a ray from home towards the north-east spots.
+  let ringLabels = [];
+  function drawRingLabels() {
+    ringLabels.forEach(h => h.remove()); ringLabels = [];
+    if (!state.rings || !G) return;
+    const brg = 55 * Math.PI / 180;
+    let prev = 0;
+    for (let km = 1; km < 400; km += 1) {
+      const lat = HOME.lat + km / 111 * Math.cos(brg), lng = HOME.lng + km / (111 * Math.cos(HOME.lat * Math.PI / 180)) * Math.sin(brg);
+      const v = sampleGrid(lat, lng); if (v == null) continue;
+      const h = Math.floor(v / 60);
+      if (h > prev && h * 60 <= state.budget) {
+        const n = document.createElement('div'); n.className = 'ring-lbl'; n.textContent = `${h} h`;
+        ringLabels.push(engine.addMarker(lat, lng, n, null, 1));
+      }
+      prev = Math.max(prev, h);
     }
   }
 
@@ -257,7 +357,7 @@
       <div>
         <div class="kicker" style="color:${s.water.colour}">${esc(s.water.name)}${s.water.region ? ` · ${esc(s.water.region)}` : ''}</div>
         <h2>${esc(s.name)}</h2>
-        <div class="sub">${s.driveEstimated ? '~' : '≈ '}${fmt(s.drive)} drive from Fitzroy${s.driveEstimated ? ' (rough)' : ''}</div>
+        <div class="sub">${s.driveEstimated ? '~' : '≈ '}${fmt(s.drive)} drive from ${esc(HOME.name)}${s.driveEstimated ? ' (rough)' : ''}</div>
       </div>
       <div class="pair">
         <button type="button" class="pill" data-act="want" aria-pressed="${!!m.want}">★ Want to go</button>
@@ -339,7 +439,7 @@
         <label class="field"><span>Water / group</span><input name="waterName" list="waterList" maxlength="60" value="${esc(src.waterName || '')}" placeholder="River, beach or bay name"><datalist id="waterList">${waterOpts}</datalist></label>
         <div class="field-row">
           <label class="field"><span>Type</span><select name="kind">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}"${(src.kind || 'river') === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
-          <label class="field"><span>Drive (min)</span><input name="drive" type="number" min="5" max="900" step="5" value="${src.drive ?? ''}" placeholder="~${estimateDrive(lat, lng)}"></label>
+          <label class="field"><span>Drive (min)</span><input name="drive" type="number" min="5" max="900" step="5" value="${src.drive ?? ''}" placeholder="~${gridDrive(lat, lng) ?? estimateDrive(lat, lng)}"></label>
         </div>
         <label class="field"><span>Access notes</span><textarea name="note" maxlength="1000" placeholder="Where to park, which way to walk, gates…">${esc(src.note || '')}</textarea></label>
         <label class="field"><span>Tags (comma separated)</span><input name="tags" maxlength="200" value="${esc((src.tags || []).join(', '))}" placeholder="fly, parking, beach, night"></label>
@@ -430,11 +530,17 @@
       mt.appendChild(b);
     });
 
-    const home = document.createElement('div'); home.className = 'home-pin'; home.title = 'Home · Fitzroy';
+    const home = document.createElement('div'); home.className = 'home-pin'; home.title = `Home · ${HOME.name}`;
     engine.addMarker(HOME.lat, HOME.lng, home, null, 3);
     syncPins();
     engine.fit([[HOME.lat, HOME.lng], ...spots.map(s => [s.lat, s.lng])]);
     engine.onClick((lat, lng) => { if (state.adding) placeDraft(lat, lng); });
+    $('homeName').textContent = HOME.name;
+    $('legendFrom').textContent = `From ${HOME.name}`;
+    $('ringsToggle').setAttribute('aria-pressed', state.rings);
+    $('legend').classList.toggle('off', !state.rings);
+    if (!G) $('legend').hidden = true;
+    drawOverlay();
 
     const ss = season();
     $('seasonDot').style.background = ss.isOpen ? '#2f9e5b' : '#c2412d';
@@ -444,7 +550,8 @@
 
   // ---------- Wire up controls ----------
   $('search').oninput = e => { state.q = e.target.value.trim().toLowerCase(); render(); };
-  $('budget').oninput = e => { state.budget = clampInt(e.target.value, 30, 240, 135); persist(); render(); };
+  $('budget').oninput = e => { state.budget = clampInt(e.target.value, 30, 240, 135); persist(); render(); drawOverlay(); };
+  $('ringsToggle').onclick = () => { state.rings = !state.rings; persist(); $('ringsToggle').setAttribute('aria-pressed', state.rings); $('legend').classList.toggle('off', !state.rings); drawOverlay(); };
   $('budgetChip').onclick = () => { const p = $('budgetPop'); p.hidden = !p.hidden; $('budgetChip').setAttribute('aria-expanded', !p.hidden); };
   document.addEventListener('click', e => { if (!e.target.closest('.pop-wrap')) { $('budgetPop').hidden = true; $('budgetChip').setAttribute('aria-expanded', 'false'); } });
   document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { state.mode = b.dataset.mode; persist(); render(); });

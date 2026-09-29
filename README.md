@@ -13,4 +13,4 @@ For Google Maps, run `sh set-key.sh` and paste a browser key restricted to your 
 
 ## Adding built-in spots
 
-Edit `spots.js`. Each water is one entry with its spots. Coordinates are decimal degrees; `drive` is minutes from Fitzroy.
+Edit `spots.js`. Each water is one entry with its spots. Coordinates are decimal degrees; `drive` is a fallback estimate in minutes from home (Flemington); `tools/build-drive-grid.py` computes the real ones.

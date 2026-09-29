@@ -1,10 +1,12 @@
 // Fishing spots data. Add new waters here — the map reads everything from this file.
 //
 // Coordinates are APPROXIMATE (placed by hand from the source PDFs' map screenshots).
-// Drive times are ESTIMATES from Fitzroy in normal traffic — the Directions link gives the real figure.
+// `drive` values are fallback ESTIMATES from HOME. drive-grid.js (OSRM, no traffic) overrides them when present.
+// The Directions link gives the real figure with traffic.
 // Always confirm access on MapShareVic (Public Land layer) before crossing anything.
 
-window.HOME = { name: 'Fitzroy', lat: -37.7985, lng: 144.978 };
+// Suburb-level start point on purpose: this site is public, so no street address.
+window.HOME = { name: 'Flemington', lat: -37.788, lng: 144.93 };
 
 window.SOURCES = {
   local: 'Angler Access on our Local Rivers (club PDF)',
@@ -111,7 +113,7 @@ window.WATERS = [
   },
   {
     id: 'king-parrot', name: 'King Parrot Creek', region: 'Flowerdale', type: 'trout', colour: '#4d9b2f',
-    blurb: 'The closest trout creek in the pack, about an hour from Fitzroy. It winds along the Whittlesea–Yea Rd.',
+    blurb: 'The closest trout creek in the pack, about an hour from Flemington. It winds along the Whittlesea–Yea Rd.',
     spots: [
       { id: 'moores-rd', name: 'Moores Rd Reserve', lat: -37.3255, lng: 145.2855, drive: 65,
         tags: ['fly', 'close'], note: 'The reserve on Moores Rd, next to Kennys Rd. The Flowerdale Hotel is around the corner.', src: 'local' },

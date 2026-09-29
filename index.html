@@ -52,7 +52,7 @@
         <button type="button" class="link-btn" id="exportBtn">Export book</button>
         <label class="link-btn">Import<input type="file" id="importFile" accept="application/json" hidden></label>
       </div>
-      <div class="fine">Drive times are estimates from Fitzroy.</div>
+      <div class="fine">Drive times from <span id="homeName">home</span>, no traffic.</div>
     </footer>
   </aside>
 
@@ -82,6 +82,18 @@
     </button>
   </div>
 
+  <div class="legend card" id="legend">
+    <div class="legend-head">
+      <div>
+        <div class="legend-title" id="legendFrom">From home</div>
+        <div class="fine">By car, no traffic · OpenStreetMap roads</div>
+      </div>
+      <button type="button" class="switch" id="ringsToggle" aria-pressed="true" aria-label="Show drive-time overlay"><span></span></button>
+    </div>
+    <div class="ramp" aria-hidden="true"></div>
+    <div class="ramp-ticks"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span><span>4 h</span></div>
+  </div>
+
   <div class="maptype card" role="radiogroup" aria-label="Map type" id="maptype"></div>
   <div class="engine-note" id="engineNote" hidden></div>
   <div class="add-banner card" id="addBanner" hidden>
@@ -98,6 +110,7 @@
 <!-- config.js holds the Google Maps key; it is gitignored. If it's missing the app falls back to free tiles. -->
 <script src="config.js"></script>
 <script src="spots.js"></script>
+<script src="drive-grid.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
