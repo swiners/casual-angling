@@ -45,6 +45,12 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>
       </button>
     </div>
+    <div class="list-view">
+      <div class="seg" aria-label="List view">
+        <button type="button" data-mode="groups">By water</button>
+        <button type="button" data-mode="all">All spots</button>
+      </div>
+    </div>
     <div class="list" id="list"></div>
     <footer class="list-foot">
       <div class="season"><span class="dot" id="seasonDot"></span><span id="seasonTxt"></span></div>
@@ -57,20 +63,16 @@
   </aside>
 
   <div class="toolbar card" role="toolbar" aria-label="Filters">
-    <div class="seg" aria-label="List view">
-      <button type="button" data-mode="groups">By water</button>
-      <button type="button" data-mode="all">All spots</button>
-    </div>
-    <div class="pop-wrap">
-      <button type="button" class="chip" id="budgetChip" aria-haspopup="true" aria-expanded="false">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <span id="budgetLbl"></span>
-      </button>
-      <div class="popover card" id="budgetPop" hidden>
-        <div class="label">Max drive, one way</div>
-        <input type="range" id="budget" min="30" max="240" step="5" aria-label="Maximum drive time in minutes">
-        <div class="ticks"><span>30m</span><span>2h</span><span>4h</span></div>
-      </div>
+    <div class="range" role="group" aria-label="How far do you want to drive?">
+      <span class="range-lbl">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Drive
+      </span>
+      <button type="button" data-range="any">Any <span class="n"></span></button>
+      <button type="button" data-range="75">1h15 <span class="n"></span></button>
+      <button type="button" data-range="90">1h30 <span class="n"></span></button>
+      <button type="button" data-range="120">2h <span class="n"></span></button>
+      <button type="button" data-range="150">2h30 <span class="n"></span></button>
     </div>
     <button type="button" class="chip" data-filter="want" aria-pressed="false">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
@@ -80,18 +82,10 @@
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>
       Fished
     </button>
-  </div>
-
-  <div class="legend card" id="legend">
-    <div class="legend-head">
-      <div>
-        <div class="legend-title" id="legendFrom">From home</div>
-        <div class="fine">By car, no traffic · OpenStreetMap roads</div>
-      </div>
-      <button type="button" class="switch" id="ringsToggle" aria-pressed="true" aria-label="Show drive-time overlay"><span></span></button>
-    </div>
-    <div class="ramp" aria-hidden="true"></div>
-    <div class="ramp-ticks"><span>0</span><span>1 h</span><span>2 h</span><span>3 h</span><span>4 h</span></div>
+    <button type="button" class="chip" id="ringsToggle" aria-pressed="false" title="Show the drive range on the map">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      Show range
+    </button>
   </div>
 
   <div class="maptype card" role="radiogroup" aria-label="Map type" id="maptype"></div>

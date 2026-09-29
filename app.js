@@ -11,12 +11,14 @@
   const fmt = m => (m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`);
   const today = () => new Date().toISOString().slice(0, 10);
 
+  const RANGES = [75, 90, 120, 150];  // one-tap drive limits, minutes
+
   // ---------- Persistence ----------
   const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE) || '{}'); } catch { return {}; } })();
   const state = {
-    budget: clampInt(saved.budget, 30, 240, 135),
+    budget: RANGES.includes(saved.budget) ? saved.budget : null,  // null = any distance
     mode: saved.mode === 'all' ? 'all' : 'groups',
-    rings: saved.rings !== false,
+    rings: saved.showRange === true,   // drive-range overlay is opt-in (new key, so older 'on' settings reset)
     filters: { want: false, fished: false },
     q: '',
     marks: migrateMarks(saved.marks || {}),
@@ -25,7 +27,7 @@
     adding: false, draft: null, editingId: null,
   };
   const persist = () => localStorage.setItem(STORE, JSON.stringify({
-    budget: state.budget, mode: state.mode, rings: state.rings, marks: state.marks, custom: state.custom,
+    budget: state.budget, mode: state.mode, showRange: state.rings, marks: state.marks, custom: state.custom,
   }));
 
   function clampInt(v, lo, hi, dflt) { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : dflt; }
@@ -154,10 +156,15 @@
         map.fitBounds(b, fitPad());
       },
       onClick: cb => map.addListener('click', e => cb(e.latLng.lat(), e.latLng.lng())),
-      // Swap in the new image before dropping the old one so the slider doesn't flicker.
-      setOverlay(url, b) {
-        const next = url && new google.maps.GroundOverlay(url, { north: b.north, south: b.south, east: b.east, west: b.west }, { clickable: false, map });
-        this._ov?.setMap(null); this._ov = next;
+      // Vector shapes: each shape is { loops: [[[lat,lng]…]…], fill?: bool, colour, weight }
+      setShapes(shapes) {
+        (this._shapes || []).forEach(x => x.setMap(null));
+        this._shapes = shapes.flatMap(sh => {
+          const paths = sh.loops.map(l => l.map(([lat, lng]) => ({ lat, lng })));
+          return sh.fill
+            ? [new google.maps.Polygon({ paths, map, clickable: false, strokeColor: sh.colour, strokeWeight: sh.weight, strokeOpacity: .9, fillColor: sh.colour, fillOpacity: .1 })]
+            : paths.map(path => new google.maps.Polyline({ path, map, clickable: false, strokeColor: sh.colour, strokeWeight: sh.weight, strokeOpacity: .75 }));
+        });
       },
     };
   }
@@ -185,10 +192,11 @@
       panTo(lat, lng, zoom) { map.flyTo([lat, lng], Math.max(map.getZoom(), zoom || 0), { duration: .7 }); },
       fit(points) { const p = fitPad(); map.fitBounds(points, { paddingTopLeft: [p.left, p.top], paddingBottomRight: [p.right, p.bottom] }); },
       onClick: cb => map.on('click', e => cb(e.latlng.lat, e.latlng.lng)),
-      setOverlay(url, b) {
-        if (!url) { this._ov?.remove(); this._ov = null; return; }
-        if (this._ov) this._ov.setUrl(url);
-        else this._ov = L.imageOverlay(url, [[b.south, b.west], [b.north, b.east]], { interactive: false }).addTo(map);
+      setShapes(shapes) {
+        (this._shapes || []).forEach(x => x.remove());
+        this._shapes = shapes.map(sh => sh.fill
+          ? L.polygon(sh.loops, { interactive: false, color: sh.colour, weight: sh.weight, opacity: .9, fillColor: sh.colour, fillOpacity: .1, fillRule: 'evenodd' }).addTo(map)
+          : L.polyline(sh.loops, { interactive: false, color: sh.colour, weight: sh.weight, opacity: .75 }).addTo(map));
       },
     };
   }
@@ -216,76 +224,80 @@
     }
   }
 
-  // ---------- Drive-time overlay ----------
-  // Painted client-side from the grid so the slider can grow/shrink it live. Rows are laid out in
-  // Web Mercator so the image lines up with the basemap; each pixel is mapped back to lat/lng.
-  const RAMP = [[0, [217, 70, 239]], [0.33, [139, 92, 246]], [0.6, [59, 130, 246]], [1, [6, 182, 212]]];
-  const MAX_MIN = 240;
-  function rampColour(t) {
-    t = Math.max(0, Math.min(1, t));
-    let i = 0; while (i < RAMP.length - 2 && t > RAMP[i + 1][0]) i++;
-    const [t0, c0] = RAMP[i], [t1, c1] = RAMP[i + 1], f = (t - t0) / (t1 - t0);
-    return c0.map((v, k) => Math.round(v + (c1[k] - v) * f));
-  }
-  const mercY = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
-  const W_PX = 1000;
-  let ovCanvas, ovVals;  // cached per-pixel minutes; only colouring reruns when the budget changes
-  function overlayValues() {
-    if (ovVals) return ovVals;
-    const yN = mercY(G.north), yS = mercY(G.south);
-    const H = Math.round(W_PX * (yN - yS) / ((G.east - G.west) * Math.PI / 180));
-    ovCanvas = Object.assign(document.createElement('canvas'), { width: W_PX, height: H });
-    ovVals = new Float32Array(W_PX * H);
-    for (let y = 0; y < H; y++) {
-      const lat = (2 * Math.atan(Math.exp(yN - (y + .5) / H * (yN - yS))) - Math.PI / 2) * 180 / Math.PI;
-      for (let x = 0; x < W_PX; x++) {
-        const v = sampleGrid(lat, G.west + (x + .5) / W_PX * (G.east - G.west));
-        ovVals[y * W_PX + x] = v == null ? -1 : v;
-      }
+  // ---------- Drive-range overlay (vector) ----------
+  // Marching squares over the drive grid gives the line where drive time == T; loops are then
+  // smoothed (Chaikin) so the ~6 km grid reads as a clean outline instead of blocks.
+  const contourCache = new Map();
+  function contour(T) {
+    if (contourCache.has(T)) return contourCache.get(T);
+    const R = G.rows + 2, C = G.cols + 2;              // pad with "unreachable" so every loop closes
+    const val = (r, c) => { if (r < 1 || c < 1 || r > G.rows || c > G.cols) return Infinity; const v = G.data[(r - 1) * G.cols + (c - 1)]; return v < 0 ? Infinity : v; };
+    const lerp = (va, vb) => (isFinite(va) && isFinite(vb) && va !== vb ? Math.min(1, Math.max(0, (T - va) / (vb - va))) : .5);
+    const segs = [];
+    for (let r = 0; r < R - 1; r++) for (let c = 0; c < C - 1; c++) {
+      const a = val(r, c), b = val(r, c + 1), d = val(r + 1, c + 1), e = val(r + 1, c);
+      const idx = (a <= T ? 8 : 0) | (b <= T ? 4 : 0) | (d <= T ? 2 : 0) | (e <= T ? 1 : 0);
+      if (idx === 0 || idx === 15) continue;
+      const top = [r, c + lerp(a, b)], right = [r + lerp(b, d), c + 1], bottom = [r + 1, c + lerp(e, d)], left = [r + lerp(a, e), c];
+      const centreIn = [a, b, d, e].filter(isFinite).reduce((x, y) => x + y, 0) / Math.max(1, [a, b, d, e].filter(isFinite).length) <= T;
+      const table = { 1: [[left, bottom]], 2: [[bottom, right]], 3: [[left, right]], 4: [[top, right]], 6: [[top, bottom]], 7: [[left, top]],
+        8: [[left, top]], 9: [[top, bottom]], 11: [[top, right]], 12: [[left, right]], 13: [[bottom, right]], 14: [[left, bottom]],
+        5: centreIn ? [[left, top], [bottom, right]] : [[left, bottom], [top, right]],
+        10: centreIn ? [[left, bottom], [top, right]] : [[left, top], [bottom, right]] };
+      segs.push(...table[idx]);
     }
-    return ovVals;
-  }
-  let ovFrame = 0;
-  function drawOverlay() {
-    if (!engine?.setOverlay || !G) return;
-    if (!state.rings) { engine.setOverlay(null); drawRingLabels(); return; }
-    cancelAnimationFrame(ovFrame);
-    ovFrame = requestAnimationFrame(() => {
-      const vals = overlayValues(), W = ovCanvas.width, H = ovCanvas.height, lim = state.budget;
-      const ctx = ovCanvas.getContext('2d'), img = ctx.createImageData(W, H), px = img.data;
-      const band = v => (v < 0 || v > lim ? -1 : Math.floor(v / 60));
-      for (let i = 0; i < vals.length; i++) {
-        const v = vals[i]; if (v < 0 || v > lim) continue;
-        const [r, g, b] = rampColour(v / MAX_MIN);
-        const bd = band(v), right = (i % W) < W - 1 ? band(vals[i + 1]) : bd, down = i + W < vals.length ? band(vals[i + W]) : bd;
-        const edge = right !== bd || down !== bd;   // hour lines and the outer budget edge
-        px[i * 4] = r; px[i * 4 + 1] = g; px[i * 4 + 2] = b; px[i * 4 + 3] = edge ? 190 : 95;
+    // Join segments end-to-end into closed loops.
+    const key = p => `${p[0].toFixed(4)},${p[1].toFixed(4)}`;
+    const at = new Map();
+    segs.forEach((sg, i) => sg.forEach(p => { const k = key(p); (at.get(k) || at.set(k, []).get(k)).push(i); }));
+    const used = new Uint8Array(segs.length), loops = [];
+    for (let i = 0; i < segs.length; i++) {
+      if (used[i]) continue;
+      used[i] = 1;
+      const loop = [segs[i][0], segs[i][1]];
+      for (;;) {
+        const tail = loop[loop.length - 1], next = (at.get(key(tail)) || []).find(j => !used[j]);
+        if (next == null) break;
+        used[next] = 1;
+        const [p0, p1] = segs[next];
+        loop.push(key(p0) === key(tail) ? p1 : p0);
       }
-      ctx.putImageData(img, 0, 0);
-      engine.setOverlay(ovCanvas.toDataURL('image/png'), G);
-      drawRingLabels();
-    });
+      if (loop.length >= 8) loops.push(loop);         // drop specks
+    }
+    const toLatLng = ([r, c]) => [G.north - (r - 1) * (G.north - G.south) / (G.rows - 1), G.west + (c - 1) * (G.east - G.west) / (G.cols - 1)];
+    const chaikin = pts => { let q = pts; for (let k = 0; k < 3; k++) { const o = []; for (let i = 0; i < q.length; i++) { const A = q[i], B = q[(i + 1) % q.length]; o.push([A[0] * .75 + B[0] * .25, A[1] * .75 + B[1] * .25], [A[0] * .25 + B[0] * .75, A[1] * .25 + B[1] * .75]); } q = o; } return q; };
+    let out = loops.map(l => chaikin(l).map(toLatLng));
+    // Google fills by winding direction, so make outer rings and holes wind opposite ways (by nesting depth).
+    const inside = (pt, poly) => { let x = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [yi, xi] = poly[i], [yj, xj] = poly[j]; if ((yi > pt[0]) !== (yj > pt[0]) && pt[1] < (xj - xi) * (pt[0] - yi) / (yj - yi) + xi) x = !x; } return x; };
+    const area = l => l.reduce((acc, p, i) => { const q = l[(i + 1) % l.length]; return acc + (p[1] * q[0] - q[1] * p[0]); }, 0);
+    out = out.map(l => { const depth = out.filter(o => o !== l && inside(l[0], o)).length; return (area(l) > 0) === (depth % 2 === 0) ? l : l.slice().reverse(); });
+    contourCache.set(T, out);
+    return out;
   }
-  // "1h", "2h"… labels placed where each hour line crosses a ray from home towards the north-east spots.
   let ringLabels = [];
-  function drawRingLabels() {
+  function drawOverlay() {
+    if (!engine?.setShapes || !G) return;
     ringLabels.forEach(h => h.remove()); ringLabels = [];
-    if (!state.rings || !G) return;
-    const brg = 55 * Math.PI / 180;
-    let prev = 0;
-    for (let km = 1; km < 400; km += 1) {
-      const lat = HOME.lat + km / 111 * Math.cos(brg), lng = HOME.lng + km / (111 * Math.cos(HOME.lat * Math.PI / 180)) * Math.sin(brg);
-      const v = sampleGrid(lat, lng); if (v == null) continue;
-      const h = Math.floor(v / 60);
-      if (h > prev && h * 60 <= state.budget) {
-        const n = document.createElement('div'); n.className = 'ring-lbl'; n.textContent = `${h} h`;
-        ringLabels.push(engine.addMarker(lat, lng, n, null, 1));
+    if (!state.rings) return engine.setShapes([]);
+    if (state.budget) {
+      engine.setShapes([{ loops: contour(state.budget), fill: true, colour: '#235f47', weight: 2 }]);
+    } else {
+      // "Any": thin hour lines with labels along a ray towards the north-east spots.
+      const hours = [60, 120, 180];
+      engine.setShapes(hours.map(t => ({ loops: contour(t), colour: '#235f47', weight: 1.5 })));
+      const brg = 55 * Math.PI / 180; let prev = 0;
+      for (let km = 1; km < 400; km++) {
+        const lat = HOME.lat + km / 111 * Math.cos(brg), lng = HOME.lng + km / (111 * Math.cos(HOME.lat * Math.PI / 180)) * Math.sin(brg);
+        const v = sampleGrid(lat, lng); if (v == null) continue;
+        const h = Math.floor(v / 60);
+        if (h > prev && h <= 3) { const n = document.createElement('div'); n.className = 'ring-lbl'; n.textContent = `${h} h`; ringLabels.push(engine.addMarker(lat, lng, n, null, 1)); }
+        prev = Math.max(prev, h);
       }
-      prev = Math.max(prev, h);
     }
   }
 
   // ---------- Filtering ----------
+  const inBudget = (s, lim = state.budget) => lim == null || s.drive <= lim;
   function matches(s) {
     const m = state.marks[s.id] || {};
     if (state.filters.want && !m.want) return false;
@@ -297,20 +309,24 @@
 
   // ---------- Render ----------
   function render() {
-    $('budgetLbl').textContent = `≤ ${fmt(state.budget)}`;
-    $('budget').value = state.budget;
+    // Range picker: each option shows how many spots (after search/filters) it would include.
+    document.querySelectorAll('[data-range]').forEach(b => {
+      const lim = b.dataset.range === 'any' ? null : +b.dataset.range;
+      b.setAttribute('aria-pressed', lim === state.budget);
+      b.querySelector('.n').textContent = spots.filter(s => matches(s) && inBudget(s, lim)).length;
+    });
     document.querySelectorAll('.seg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
     document.querySelectorAll('[data-filter]').forEach(b => b.setAttribute('aria-pressed', state.filters[b.dataset.filter]));
 
-    const shown = spots.filter(matches);
-    const inRange = shown.filter(s => s.drive <= state.budget);
-    $('listMeta').textContent = `${inRange.length} in range · ${new Set(inRange.map(s => s.water.id)).size} waters`;
+    const shown = spots.filter(s => matches(s) && inBudget(s));
+    const nW = new Set(shown.map(s => s.water.id)).size;
+    $('listMeta').textContent = `${shown.length} spot${shown.length === 1 ? '' : 's'} ${state.budget ? `within ${fmt(state.budget)}` : 'at any distance'} · ${nW} water${nW === 1 ? '' : 's'}`;
 
     for (const s of spots) {
       const p = pins.get(s.id); if (!p) continue;
       const m = state.marks[s.id] || {};
-      p.node.className = ['pin', s.drive > state.budget && 'out', m.want && 'want', m.fished && 'fished', state.active === s.id && 'active'].filter(Boolean).join(' ');
-      p.node.style.display = matches(s) ? '' : 'none';
+      p.node.className = ['pin', m.want && 'want', m.fished && 'fished', state.active === s.id && 'active'].filter(Boolean).join(' ');
+      p.node.style.display = matches(s) && inBudget(s) ? '' : 'none';
     }
 
     const list = $('list');
@@ -319,7 +335,7 @@
       const m = state.marks[s.id] || {};
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = `row${s.drive > state.budget ? ' out' : ''}${state.active === s.id ? ' active' : ''}`;
+      b.className = `row${state.active === s.id ? ' active' : ''}`;
       b.innerHTML = `${state.mode === 'all' ? `<span class="sw" style="background:${s.water.colour}"></span>` : ''}<span class="nm">${esc(s.name)}</span><span class="mk">${m.want ? '★' : ''}${m.fished ? '✓' : ''}</span><span class="t">${s.driveEstimated ? '~' : ''}${fmt(s.drive)}</span>`;
       b.onclick = () => select(s.id, true);
       return b;
@@ -337,7 +353,7 @@
         ws.forEach(s => list.appendChild(row(s)));
       });
     }
-    if (!list.children.length) list.innerHTML = '<div class="empty">No spots match. Clear the search or filters.</div>';
+    if (!list.children.length) list.innerHTML = `<div class="empty">${state.budget ? `Nothing within ${fmt(state.budget)} yet. Try a longer drive.` : 'No spots match. Clear the search or filters.'}</div>`;
   }
 
   // ---------- Detail panel ----------
@@ -536,10 +552,8 @@
     engine.fit([[HOME.lat, HOME.lng], ...spots.map(s => [s.lat, s.lng])]);
     engine.onClick((lat, lng) => { if (state.adding) placeDraft(lat, lng); });
     $('homeName').textContent = HOME.name;
-    $('legendFrom').textContent = `From ${HOME.name}`;
     $('ringsToggle').setAttribute('aria-pressed', state.rings);
-    $('legend').classList.toggle('off', !state.rings);
-    if (!G) $('legend').hidden = true;
+    if (!G) $('ringsToggle').hidden = true;
     drawOverlay();
 
     const ss = season();
@@ -550,10 +564,14 @@
 
   // ---------- Wire up controls ----------
   $('search').oninput = e => { state.q = e.target.value.trim().toLowerCase(); render(); };
-  $('budget').oninput = e => { state.budget = clampInt(e.target.value, 30, 240, 135); persist(); render(); drawOverlay(); };
-  $('ringsToggle').onclick = () => { state.rings = !state.rings; persist(); $('ringsToggle').setAttribute('aria-pressed', state.rings); $('legend').classList.toggle('off', !state.rings); drawOverlay(); };
-  $('budgetChip').onclick = () => { const p = $('budgetPop'); p.hidden = !p.hidden; $('budgetChip').setAttribute('aria-expanded', !p.hidden); };
-  document.addEventListener('click', e => { if (!e.target.closest('.pop-wrap')) { $('budgetPop').hidden = true; $('budgetChip').setAttribute('aria-expanded', 'false'); } });
+  // Picking a range hides everything further away, then zooms to what's left.
+  document.querySelectorAll('[data-range]').forEach(b => b.onclick = () => {
+    state.budget = b.dataset.range === 'any' ? null : +b.dataset.range;
+    persist(); render(); drawOverlay();
+    const vis = spots.filter(s => matches(s) && inBudget(s));
+    if (vis.length) engine.fit([[HOME.lat, HOME.lng], ...vis.map(s => [s.lat, s.lng])]);
+  });
+  $('ringsToggle').onclick = () => { state.rings = !state.rings; persist(); $('ringsToggle').setAttribute('aria-pressed', state.rings); drawOverlay(); };
   document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { state.mode = b.dataset.mode; persist(); render(); });
   document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { state.filters[b.dataset.filter] = !state.filters[b.dataset.filter]; render(); });
   $('collapse').onclick = () => { const c = $('listCard').classList.toggle('collapsed'); $('collapse').setAttribute('aria-expanded', !c); };
