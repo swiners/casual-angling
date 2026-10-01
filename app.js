@@ -424,7 +424,10 @@
   }
 
   // ---------- Detail panel ----------
-  const HOT = ['upstream only', 'day visits only', '4WD'];
+  // Tags that matter on foot: amber = heads-up, green = good for wading/walking.
+  const HOT = ['upstream only', 'day visits only', '4WD', '4wd-helps', 'dry weather', 'steep bank', 'check-access', 'check-rules', 'bank only'];
+  const GOOD = ['wade', 'walk upstream', 'walk up & down', 'walk-in'];
+  const tagClass = t => (HOT.includes(t) ? ' hot' : GOOD.includes(t) ? ' good' : '');
   const blankMark = () => ({ want: false, fished: false, note: '', last: '' });
   function openDetail() { $('detail').hidden = false; document.body.classList.add('detail-open'); }
   function select(id, pan) {
@@ -451,7 +454,7 @@
           <button type="button" class="pill" data-act="want" aria-pressed="${!!m.want}">★ Want to go</button>
           <button type="button" class="pill" data-act="fished" aria-pressed="${!!m.fished}">✓ Fished</button>
         </div>
-        ${s.note || s.tags?.length ? `<div><h3>Access notes</h3>${s.note ? `<p>${esc(s.note)}</p>` : ''}${s.tags?.length ? `<div class="tags">${s.tags.map(t => `<span class="tag${HOT.includes(t) ? ' hot' : ''}">${esc(t)}</span>`).join('')}</div>` : ''}</div>` : ''}
+        ${s.note || s.tags?.length ? `<div><h3>Access notes</h3>${s.note ? `<p>${esc(s.note)}</p>` : ''}${s.tags?.length ? `<div class="tags">${s.tags.map(t => `<span class="tag${tagClass(t)}">${esc(t)}</span>`).join('')}</div>` : ''}</div>` : ''}
         <div>
           <h3>What worked${m.last ? ` · last fished ${esc(new Date(m.last).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }))}` : ''}</h3>
           <textarea id="noteBox" placeholder="Flies, lures, flows, where the fish held…">${esc(m.note || '')}</textarea>

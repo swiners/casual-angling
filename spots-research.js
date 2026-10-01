@@ -145,15 +145,13 @@
     "spots": [
       {
         "id": "goulburn-alexandra-bridge-maroondah-hwy-boat-ramp",
-        "name": "Alexandra Bridge (Maroondah Hwy) boat ramp",
+        "name": "Alexandra Bridge",
         "lat": -37.19909,
         "lng": 145.6844,
-        "note": "VFA access site with 2WD access in any weather, a concrete boat ramp, picnic tables and good bank access.",
+        "note": "VFA access site: 2WD in any weather, picnic tables and good bank access.",
         "tags": [
-          "bridge",
-          "boat ramp",
           "2WD",
-          "picnic tables"
+          "easy access"
         ],
         "conf": "high",
         "src": "research"
@@ -163,38 +161,37 @@
         "name": "Brooks (Brookes) River Reserve",
         "lat": -37.19063,
         "lng": 145.67107,
-        "note": "VFA site via Swan Rd and Brooks Cutting Rd west of Alexandra. Has camping, toilets and BBQs. The bank is moderate to steep.",
+        "note": "VFA site via Swan Rd and Brooks Cutting Rd west of Alexandra, with camping, toilets and BBQs. The bank is moderate to steep, so pick your way down carefully.",
         "tags": [
           "camping",
-          "toilets",
-          "2WD"
+          "2WD",
+          "steep bank"
         ],
         "conf": "high",
         "src": "research"
       },
       {
         "id": "goulburn-point-hill-reserve-boat-ramp",
-        "name": "Point Hill Reserve boat ramp",
+        "name": "Point Hill Reserve",
         "lat": -37.25843,
         "lng": 145.85157,
-        "note": "VFA site about 5.3 km along Back Eildon Rd. Concrete ramp, moderate bank, no facilities. Point Hill is one of VFA's 'recognised spots'. It may overlap the existing 'Back Eildon Rd' spot.",
+        "note": "About 5.3 km along Back Eildon Rd. One of VFA’s recognised spots, with a moderate bank and no facilities.",
         "tags": [
-          "boat ramp",
-          "2WD"
+          "2WD",
+          "bank"
         ],
         "conf": "high",
         "src": "research"
       },
       {
         "id": "goulburn-molesworth-gv-hwy-bridge-recreation-reserve",
-        "name": "Molesworth (GV Hwy bridge / Recreation Reserve)",
+        "name": "Molesworth (GV Hwy bridge)",
         "lat": -37.16437,
         "lng": 145.54426,
-        "note": "VFA lists Molesworth among the downstream road crossings and reserves. There is a boat ramp in the caravan park.",
+        "note": "VFA lists Molesworth among the downstream road crossings and reserves. Bank access by the bridge and recreation reserve.",
         "tags": [
           "bridge",
-          "boat ramp",
-          "caravan park"
+          "bank"
         ],
         "conf": "medium",
         "src": "research"
@@ -204,10 +201,10 @@
         "name": "Killingworth Rd Streamside Reserve",
         "lat": -37.16456,
         "lng": 145.42495,
-        "note": "VFA site about 6 km along Killingworth Rd. Composite ramp is 4WD and dry weather only. No facilities. The pin is the reserve centroid, not the car park.",
+        "note": "About 6 km along Killingworth Rd. A streamside reserve with no facilities; the track in is dry-weather only. The pin is the reserve centre, not the car park.",
         "tags": [
           "reserve",
-          "boat ramp (4WD)"
+          "dry weather"
         ],
         "conf": "medium",
         "src": "research"
@@ -217,10 +214,9 @@
         "name": "Ghin Ghin Rd bridge",
         "lat": -37.18148,
         "lng": 145.36911,
-        "note": "VFA site about 3.5 km along Ghin Ghin Rd. Composite ramp, 2WD in dry weather. Moderate bank.",
+        "note": "About 3.5 km along Ghin Ghin Rd. Moderate bank, 2WD in dry weather.",
         "tags": [
           "bridge",
-          "boat ramp",
           "2WD"
         ],
         "conf": "high",
@@ -270,8 +266,8 @@
   }
 ];
   const BLURB_ADD = {
-  "goulburn": "Irrigation flows run high from late September to April, so check releases first (Goulburn-Murray Water, Lake Eildon page). In the river closed season, fishing gear is banned within 20 m of the river from Eildon to Trawool, tributaries included. About 2,000 big rainbows were stocked for the 2026 opening, shared with the Pondage. The Goulburn Valley Fly Fishing Centre at Thornton is the place for current local info.",
-  "eildon-pondage": "VFA lists browns and rainbows to 3.5 kg. No fishing for 200 m below the Pondage weir.",
+  "_goulburn_old": "Irrigation flows run high from late September to April, so check releases first (Goulburn-Murray Water, Lake Eildon page). In the river closed season, fishing gear is banned within 20 m of the river from Eildon to Trawool, tributaries included. About 2,000 big rainbows were stocked for the 2026 opening, shared with the Pondage. The Goulburn Valley Fly Fishing Centre at Thornton is the place for current local info.",
+  "_eildon_old": "VFA lists browns and rainbows to 3.5 kg. No fishing for 200 m below the Pondage weir.",
   "rubicon": "Special limits: 25 cm minimum and 3 trout a day.",
   "steavenson": "Unstocked, self-sustaining browns, mostly small (about 220 g on average), and heavily fished."
 };
@@ -455,7 +451,7 @@
     "region": "Kyneton",
     "type": "lake",
     "colour": "#c2410c",
-    "blurb": "Deep Coliban Water storage stocked with brown trout, also holding redfin. Shore fishing plus kayaks, canoes and electric-motor car-toppers from the two recreation areas.",
+    "blurb": "Deep Coliban Water storage stocked with brown trout, also holding redfin. Fished from the shore at two recreation areas.",
     "sources": [
       "https://www.coliban.com.au/about-us/our-reservoirs/upper-coliban-reservoir",
       "https://coliban.com.au/new-reservoir-access-point-win-victorian-anglers",
@@ -464,12 +460,11 @@
     "spots": [
       {
         "id": "upper-coliban-reservoir-dam-wall-kayak-launch-kyneton-springhill-road",
-        "name": "Dam wall kayak launch (Kyneton–Springhill Road)",
+        "name": "Dam wall recreation area (Kyneton–Springhill Rd)",
         "lat": -37.28738,
         "lng": 144.39741,
-        "note": "Main recreation area at the dam wall. Coliban Water had this area closed while the reservoir was spilling, so check before you go.",
+        "note": "Main shore access at the dam wall. Coliban Water closed this area while the reservoir was spilling, so check before you go.",
         "tags": [
-          "kayak",
           "bank",
           "car park"
         ],
@@ -481,9 +476,8 @@
         "name": "Premier Mine Road access",
         "lat": -37.2777,
         "lng": 144.41592,
-        "note": "Second access point and boat ramp, opened December 2019 with VFA and Kyneton Angling Club. Pin is the road end, not the exact ramp.",
+        "note": "Second shore access point, opened in 2019 with VFA and the Kyneton Angling Club. The pin is the road end.",
         "tags": [
-          "kayak",
           "bank"
         ],
         "conf": "medium",
@@ -505,12 +499,11 @@
     "spots": [
       {
         "id": "lauriston-reservoir-loop-road-slipway",
-        "name": "Loop Road slipway",
+        "name": "Loop Road recreation area",
         "lat": -37.2554,
         "lng": 144.3812,
-        "note": "Likely the single watercraft entry point. Coliban Water lists a car park, toilets, BBQ and playground at the recreation area. Not cross-checked against their access map.",
+        "note": "Recreation area with a car park, toilets and BBQ, per Coliban Water. Pin is approximate.",
         "tags": [
-          "kayak",
           "bank"
         ],
         "conf": "medium",
@@ -548,7 +541,7 @@
         "name": "Dam wall picnic area (Sullivan Street, Malmsbury)",
         "lat": -37.19532,
         "lng": 144.37503,
-        "note": "Picnic and BBQ area near the town end. VFA notes anglers reporting trout around the dam wall. As of Oct 2026 Coliban Water had closed it to on-water activity after heavy rain; shore fishing status unclear.",
+        "note": "Picnic and BBQ area at the town end. VFA notes trout around the dam wall. Coliban Water closed the reservoir to on-water use after heavy rain in October 2026, so check shore access before you go.",
         "tags": [
           "bank",
           "picnic"
