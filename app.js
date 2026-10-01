@@ -410,6 +410,19 @@
     setTimeout(() => t.remove(), action ? 6000 : 3000);
   }
 
+  // Where a spot came from, how sure we are of the pin, and links to check. Only http(s) URLs are linked.
+  const safeUrl = u => (typeof u === 'string' && /^https?:\/\/[^\s"'<>]+$/.test(u) ? u : null);
+  const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'link'; } };
+  const CONF = { high: 'Pin checked against OpenStreetMap', medium: 'Pin is close, not exact', low: 'Pin is a rough guess' };
+  function sourceBlock(s) {
+    const links = [...new Set([...(s.links || []), ...(s.water.sources || [])])].map(safeUrl).filter(Boolean).slice(0, 6);
+    const bits = [];
+    if (s.src && SOURCES[s.src]) bits.push(`Source: ${esc(SOURCES[s.src])}`);
+    if (s.conf && CONF[s.conf]) bits.push(esc(CONF[s.conf]));
+    const linkHtml = links.length ? `<div class="src-links">${links.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(host(u))} ↗</a>`).join('')}</div>` : '';
+    return bits.length || linkHtml ? `<div class="fine">${bits.join(' · ')}${linkHtml}</div>` : '';
+  }
+
   // ---------- Detail panel ----------
   const HOT = ['upstream only', 'day visits only', '4WD'];
   const blankMark = () => ({ want: false, fished: false, note: '', last: '' });
@@ -448,7 +461,7 @@
         ${s.water.blurb ? `<div><h3>About the water</h3><p style="color:var(--dim)">${esc(s.water.blurb)}</p></div>` : ''}
         <div class="verify"><b>Check before you go</b>Confirm public access on <a href="https://mapshare.vic.gov.au/mapsharevic/" target="_blank" rel="noopener">MapShareVic</a> and the current rules on the <a href="https://vfa.vic.gov.au" target="_blank" rel="noopener">VFA site</a>. Pin locations and drive times are approximate.</div>
         ${s.custom ? '<div class="edit-row"><button type="button" class="btn small" data-act="edit">Edit spot</button><button type="button" class="btn small danger" data-act="delete">Delete</button></div>' : ''}
-        ${s.src && SOURCES[s.src] ? `<div class="fine">Source: ${esc(SOURCES[s.src])}</div>` : ''}
+        ${sourceBlock(s)}
       </div>
       <div class="detail-foot">
         <a class="btn primary wide" href="${dir}" target="_blank" rel="noopener">
@@ -608,13 +621,13 @@
   }
 
   // ---------- Season (approximate rule — verify with VFA) ----------
-  // Vic rivers & streams: closed from the Tuesday after King's Birthday (2nd Mon in June) to the Saturday nearest 1 Sept.
+  // Vic rivers & streams: closed from the Tuesday after King's Birthday (2nd Mon in June) until the first
+  // Saturday in September (2026: closed 9 Jun, reopened Sat 5 Sep — VFA).
   function season(d = new Date()) {
     const y = d.getFullYear(), j1 = new Date(y, 5, 1);
     const kb = new Date(y, 5, 1 + ((8 - j1.getDay()) % 7) + 7);
     const close = new Date(y, 5, kb.getDate() + 1);
-    const off = (6 - new Date(y, 8, 1).getDay() + 7) % 7;
-    const open = new Date(y, 8, 1 + (off > 3 ? off - 7 : off));
+    const open = new Date(y, 8, 1 + ((6 - new Date(y, 8, 1).getDay() + 7) % 7));
     return { isOpen: d < close || d >= open, open };
   }
 

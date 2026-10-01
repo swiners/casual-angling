@@ -191,6 +191,8 @@ details.more .inner { display: grid; gap: 14px; }
 .verify b { display: block; margin-bottom: 4px; color: #3f3520; }
 .verify a { color: var(--green); font-weight: 600; }
 .edit-row { display: flex; gap: 8px; }
+.src-links { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; }
+.src-links a { color: var(--green-2); font-weight: 600; text-decoration: none; padding: 6px 0; }
 
 /* ---------- Toasts ---------- */
 .toasts { position: absolute; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--sheet-h) + var(--safe-b) + 12px); display: grid; gap: 8px; justify-items: center; pointer-events: none; }
